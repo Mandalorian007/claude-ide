@@ -12,7 +12,7 @@ claude-ide/                    # Root directory
 ├── specs/                    # Project specifications
 │   ├── CONCEPT.md           # Architecture and design concepts
 │   └── CLAUDE_SDK_GUIDE.md  # SDK quick reference
-└── claude-ide/              # Next.js application
+└── web-app/                 # Next.js application
     ├── app/                 # Next.js app router
     ├── components/          # React components
     ├── lib/                 # Utilities and core logic
@@ -20,8 +20,8 @@ claude-ide/                    # Root directory
 ```
 
 **Important**: This repository has a nested structure where:
-- The **root `claude-ide/` directory** contains agentic tooling, specifications, and Claude configurations
-- The **nested `claude-ide/claude-ide/` directory** contains the Next.js application
+- The **root directory** contains agentic tooling, specifications, and Claude configurations
+- The **`web-app/` directory** contains the Next.js application
 
 ## Overview
 
@@ -104,7 +104,7 @@ Each agent:
 
 ```bash
 # Install dependencies for the Next.js app
-cd claude-ide/claude-ide
+cd web-app
 npm install
 
 # Set up environment variables
@@ -116,7 +116,7 @@ cp .env.example .env.local
 
 ```bash
 # Start the development server
-cd claude-ide/claude-ide
+cd web-app
 npm run dev
 ```
 
@@ -126,7 +126,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 ```bash
 # Build for production
-cd claude-ide/claude-ide
+cd web-app
 npm run build
 
 # Start production server

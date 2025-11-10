@@ -237,17 +237,18 @@ UI shows all 3 under "my-web-app" section
 ## File Structure
 
 ```
-/app
-  /page.tsx                # Main 3-panel layout (responsive)
-  /actions.ts              # Server Actions (start agent, get projects, etc.)
+/web-app
+  /app
+    /page.tsx                # Main 3-panel layout (responsive)
+    /actions.ts              # Server Actions (start agent, get projects, etc.)
   /components
-    /ProjectsList.tsx      # Left panel - projects with agents
-    /ActivityViewer.tsx    # Middle panel (placeholder)
-    /AgentChat.tsx         # Right panel - start agents
-
-/lib
-  /agent-repository.ts     # In-memory state for all agents
-  /agent-manager.ts        # Start/stop agents, stream updates
+    /ProjectsList.tsx        # Left panel - projects with agents
+    /ActivityViewer.tsx      # Middle panel (placeholder)
+    /AgentChat.tsx           # Right panel - start agents
+  /lib
+    /agent-repository.ts     # In-memory state for all agents
+    /types.ts                # TypeScript type definitions
+    /utils.ts                # Utility functions
 ```
 
 ## Key Features
