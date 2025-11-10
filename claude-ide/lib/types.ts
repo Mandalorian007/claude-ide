@@ -24,6 +24,7 @@ export interface Agent {
   lastMessage?: string;
   error?: string;
   messages: AgentMessage[];
+  sessionId?: string;
 }
 
 export interface Project {
