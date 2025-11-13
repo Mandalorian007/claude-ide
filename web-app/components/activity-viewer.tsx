@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Agent, AgentMessage } from "@/lib/types";
 import { getAgent, continueAgent } from "@/app/actions";
 import { Activity, Terminal, User, Wrench, CheckCircle, XCircle, Send, Loader2 } from "lucide-react";
+import ConfettiExplosion from "react-confetti-explosion";
 
 interface ActivityViewerProps {
   selectedAgentId?: string | null;
@@ -16,6 +17,8 @@ export function ActivityViewer({ selectedAgentId, onAgentSelect }: ActivityViewe
   const [followUpPrompt, setFollowUpPrompt] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isExploding, setIsExploding] = useState(false);
+  const previousMessagesRef = useRef<AgentMessage[]>([]);
 
   useEffect(() => {
     if (!selectedAgentId) {
@@ -41,6 +44,31 @@ export function ActivityViewer({ selectedAgentId, onAgentSelect }: ActivityViewe
     const interval = setInterval(loadAgent, 2000);
     return () => clearInterval(interval);
   }, [selectedAgentId]);
+
+  // Detect session completion and trigger confetti
+  useEffect(() => {
+    if (!agent || !agent.messages) return;
+
+    const currentMessages = agent.messages;
+    const previousMessages = previousMessagesRef.current;
+
+    // Check if a new success result message was added
+    const hasNewSuccessResult = currentMessages.some((msg, index) => {
+      const isNewMessage = index >= previousMessages.length;
+      const isSuccessResult = msg.type === "result" && msg.subtype === "success";
+      return isNewMessage && isSuccessResult;
+    });
+
+    if (hasNewSuccessResult) {
+      setIsExploding(true);
+      // Reset confetti after animation completes
+      const timer = setTimeout(() => setIsExploding(false), 3000);
+      return () => clearTimeout(timer);
+    }
+
+    // Update reference
+    previousMessagesRef.current = currentMessages;
+  }, [agent]);
 
   const getMessageIcon = (type: string) => {
     switch (type) {
@@ -227,6 +255,8 @@ export function ActivityViewer({ selectedAgentId, onAgentSelect }: ActivityViewe
                 {/* Result success display with usage stats */}
                 {message.type === "result" && message.subtype === "success" && message.metadata?.usage && (
                   <div className="space-y-2">
+                    {/* Confetti explosion on completion */}
+                    {isExploding && <ConfettiExplosion />}
                     <div className="flex flex-wrap gap-1.5">
                       {message.metadata.usage.input_tokens > 0 && (
                         <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">
