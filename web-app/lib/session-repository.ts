@@ -422,5 +422,14 @@ class SessionRepository {
   }
 }
 
-// Singleton instance
-export const sessionRepository = new SessionRepository();
+// Singleton instance with global caching to ensure same instance across Next.js contexts
+const globalForSessionRepo = globalThis as unknown as {
+  sessionRepository: SessionRepository | undefined;
+};
+
+export const sessionRepository =
+  globalForSessionRepo.sessionRepository ?? new SessionRepository();
+
+if (process.env.NODE_ENV !== "production") {
+  globalForSessionRepo.sessionRepository = sessionRepository;
+}

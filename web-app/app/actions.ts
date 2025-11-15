@@ -77,6 +77,9 @@ export async function startSession(
       model: "claude-sonnet-4-5",
     });
 
+    console.log(`[Server Action] Session created: ${session.id}`);
+    console.log(`[Server Action] Total sessions: ${sessionRepository.getAllSessions().length}`);
+
     // Run session in background
     runSessionInBackground(session.id, workspacePath, prompt);
 

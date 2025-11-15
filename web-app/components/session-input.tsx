@@ -22,7 +22,11 @@ import { Loader2, AlertCircle, RefreshCw, ChevronsUpDown, Check } from "lucide-r
 import { GitHubRepo } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export function SessionInput() {
+interface SessionInputProps {
+  onSessionCreated?: (sessionId: string) => void;
+}
+
+export function SessionInput({ onSessionCreated }: SessionInputProps = {}) {
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<string>("");
   const [open, setOpen] = useState(false);
@@ -90,6 +94,11 @@ export function SessionInput() {
       if (result.success) {
         // Clear prompt on success
         setPrompt("");
+
+        // Notify parent component of new session
+        if (result.sessionId && onSessionCreated) {
+          onSessionCreated(result.sessionId);
+        }
       } else {
         setError(result.error || "Failed to start session");
       }

@@ -10,6 +10,12 @@ import { ConversationView } from "@/components/conversation-view";
 export default function Home() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
+  const handleSessionCreated = (sessionId: string) => {
+    console.log(`[UI] New session created: ${sessionId}`);
+    // Auto-select the newly created session
+    setSelectedSessionId(sessionId);
+  };
+
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <Header />
@@ -18,7 +24,7 @@ export default function Home() {
         <div className="grid h-full grid-cols-1 lg:grid-cols-12 overflow-hidden">
           {/* Left Panel - Session Input & Sessions List */}
           <div className="border-r border-border bg-muted/30 lg:col-span-3 h-full overflow-hidden flex flex-col">
-            <SessionInput />
+            <SessionInput onSessionCreated={handleSessionCreated} />
             <div className="flex-1 overflow-hidden">
               <SessionsList onSessionSelect={setSelectedSessionId} />
             </div>
