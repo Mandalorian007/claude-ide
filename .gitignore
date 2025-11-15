@@ -94,6 +94,9 @@ mcp-*.log
 .claude/sessions/
 .claude/state/
 
+# Claude IDE Workspaces (nested git repos)
+.claude-workspaces/
+
 # OS
 Thumbs.db
 *.log

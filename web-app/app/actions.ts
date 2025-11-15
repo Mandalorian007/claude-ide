@@ -216,6 +216,7 @@ async function runSessionInBackground(
           type: "preset",
           preset: "claude_code",
         },
+        settingSources: ["project"],
         maxTurns: 20,
 
         // Define sub-agents available to this session
@@ -289,6 +290,7 @@ async function runSessionWithResume(
           type: "preset",
           preset: "claude_code",
         },
+        settingSources: ["project"],
         maxTurns: 20,
         resume: sdkSessionId,
 

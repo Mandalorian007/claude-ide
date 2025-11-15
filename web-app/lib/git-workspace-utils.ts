@@ -8,35 +8,13 @@ import { GitHubRepo } from "./types";
 const execAsync = promisify(exec);
 
 /**
- * Expand tilde (~) in path to home directory
- */
-function expandTilde(filepath: string): string {
-  if (filepath.startsWith('~/') || filepath === '~') {
-    const home = process.env.HOME || process.env.USERPROFILE;
-    if (!home) {
-      throw new Error('Could not determine home directory');
-    }
-    return filepath.replace(/^~(?=$|\/|\\)/, home);
-  }
-  return filepath;
-}
-
-/**
- * Get the workspace directory from environment or use default
+ * Get the workspace directory
+ * Always uses .claude-workspaces in the project root
  */
 export function getWorkspaceDir(): string {
-  const configuredDir = process.env.CLAUDE_WORKSPACES_DIR;
-
-  if (configuredDir) {
-    return expandTilde(configuredDir);
-  }
-
-  const home = process.env.HOME || process.env.USERPROFILE;
-  if (!home) {
-    throw new Error('Could not determine home directory');
-  }
-
-  return path.join(home, ".claude-workspaces");
+  // Use .claude-workspaces in the project root (one level up from web-app/)
+  // This allows nested git repos while sharing .claude/ configuration
+  return path.join(process.cwd(), '..', '.claude-workspaces');
 }
 
 /**
