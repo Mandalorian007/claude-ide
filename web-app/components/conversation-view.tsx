@@ -1,17 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSessionDetails, continueSession } from "@/app/actions";
+import { getSession, continueSession, createPR } from "@/app/actions";
 import { Session } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Bot, User, Loader2, Send } from "lucide-react";
+import { Bot, User, Loader2, Send, GitBranch, FolderGit2, ExternalLink } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export function ConversationView({ sessionId }: { sessionId: string | null }) {
   const [session, setSession] = useState<Session | null>(null);
   const [followUpPrompt, setFollowUpPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCreatingPR, setIsCreatingPR] = useState(false);
+  const [prTitle, setPrTitle] = useState("");
+  const [prBody, setPrBody] = useState("");
+  const [showPRForm, setShowPRForm] = useState(false);
 
   useEffect(() => {
     if (!sessionId) {
@@ -20,7 +26,7 @@ export function ConversationView({ sessionId }: { sessionId: string | null }) {
     }
 
     const loadSession = async () => {
-      const data = await getSessionDetails(sessionId);
+      const data = await getSession(sessionId);
       setSession(data);
     };
 
@@ -48,6 +54,33 @@ export function ConversationView({ sessionId }: { sessionId: string | null }) {
     }
   };
 
+  const handleCreatePR = async () => {
+    if (!sessionId || !session) return;
+
+    const title = prTitle.trim() || session.title;
+    const body = prBody.trim() || session.description;
+
+    setIsCreatingPR(true);
+
+    try {
+      const result = await createPR(sessionId, title, body);
+      if (result.success && result.prUrl) {
+        setShowPRForm(false);
+        setPrTitle("");
+        setPrBody("");
+        // Open PR in new tab
+        window.open(result.prUrl, "_blank");
+      } else {
+        alert(`Failed to create PR: ${result.error}`);
+      }
+    } catch (error) {
+      console.error("Failed to create PR:", error);
+      alert("Failed to create pull request");
+    } finally {
+      setIsCreatingPR(false);
+    }
+  };
+
   if (!sessionId) {
     return (
       <div className="flex h-full items-center justify-center p-8">
@@ -70,12 +103,92 @@ export function ConversationView({ sessionId }: { sessionId: string | null }) {
   return (
     <div className="flex h-full flex-col">
       {/* Session Header */}
-      <div className="border-b p-4">
-        <h2 className="font-semibold">{session.title}</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {session.status} • {Math.round(session.contextUsed / 1000)}k/{Math.round(session.maxContext / 1000)}k context •
-          ${session.totalCost.toFixed(6)}
-        </p>
+      <div className="border-b p-4 space-y-3">
+        <div>
+          <h2 className="font-semibold">{session.title}</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {session.status} • {Math.round(session.contextUsed / 1000)}k/{Math.round(session.maxContext / 1000)}k context
+          </p>
+        </div>
+
+        {/* Workspace Info */}
+        <div className="flex flex-col gap-2 text-xs">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <FolderGit2 className="h-3 w-3" />
+            <span className="font-mono truncate">{session.workspacePath}</span>
+          </div>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <GitBranch className="h-3 w-3" />
+            <span className="font-mono">{session.gitBranch}</span>
+          </div>
+        </div>
+
+        {/* PR Actions */}
+        {session.status === "completed" && (
+          <div className="pt-2 border-t">
+            {session.prUrl ? (
+              <a
+                href={session.prUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+              >
+                View Pull Request
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            ) : showPRForm ? (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={prTitle}
+                  onChange={(e) => setPrTitle(e.target.value)}
+                  placeholder={session.title}
+                  className="w-full px-2 py-1 text-sm border rounded"
+                  disabled={isCreatingPR}
+                />
+                <Textarea
+                  value={prBody}
+                  onChange={(e) => setPrBody(e.target.value)}
+                  placeholder={session.description}
+                  className="min-h-[80px] resize-none text-sm"
+                  disabled={isCreatingPR}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleCreatePR}
+                    disabled={isCreatingPR}
+                  >
+                    {isCreatingPR ? (
+                      <>
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                        Creating PR...
+                      </>
+                    ) : (
+                      "Create Pull Request"
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowPRForm(false)}
+                    disabled={isCreatingPR}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowPRForm(true)}
+              >
+                Create Pull Request
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Messages */}
@@ -173,7 +286,13 @@ function MessageItem({ message }: { message: any }) {
 
         {/* Message Content */}
         <div className="prose prose-sm dark:prose-invert max-w-none">
-          <pre className="whitespace-pre-wrap font-sans text-sm">{message.content}</pre>
+          {isAssistant || isUser ? (
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {message.content}
+            </ReactMarkdown>
+          ) : (
+            <pre className="whitespace-pre-wrap font-sans text-sm">{message.content}</pre>
+          )}
         </div>
 
         {/* Metadata */}
@@ -187,11 +306,6 @@ function MessageItem({ message }: { message: any }) {
                 <Badge variant="outline" className="text-xs">
                   Out: {message.metadata.tokens.output.toLocaleString()}
                 </Badge>
-                {message.metadata.tokens.cache_read > 0 && (
-                  <Badge variant="outline" className="text-xs">
-                    Cache: {message.metadata.tokens.cache_read.toLocaleString()}
-                  </Badge>
-                )}
               </>
             )}
           </div>

@@ -128,7 +128,7 @@ Each session:
 ### Prerequisites
 
 - Node.js 20+
-- npm or pnpm
+- pnpm 9+ (install with `npm install -g pnpm`)
 - Anthropic API key
 
 ### Installation
@@ -136,7 +136,7 @@ Each session:
 ```bash
 # Install dependencies for the Next.js app
 cd web-app
-npm install
+pnpm install
 
 # Set up environment variables
 cp .env.example .env.local
@@ -148,7 +148,7 @@ cp .env.example .env.local
 ```bash
 # Start the development server
 cd web-app
-npm run dev
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the application.
@@ -158,10 +158,10 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 ```bash
 # Build for production
 cd web-app
-npm run build
+pnpm build
 
 # Start production server
-npm start
+pnpm start
 ```
 
 ## MCP Servers

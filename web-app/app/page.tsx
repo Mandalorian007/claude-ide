@@ -14,14 +14,14 @@ export default function Home() {
     <div className="flex h-screen flex-col overflow-hidden">
       <Header />
 
-      {/* Session Input - Top Bar */}
-      <SessionInput />
-
       <main className="flex-1 overflow-hidden">
         <div className="grid h-full grid-cols-1 lg:grid-cols-12 overflow-hidden">
-          {/* Left Panel - Sessions List */}
-          <div className="border-r border-border bg-muted/30 lg:col-span-3 h-full overflow-hidden">
-            <SessionsList onSessionSelect={setSelectedSessionId} />
+          {/* Left Panel - Session Input & Sessions List */}
+          <div className="border-r border-border bg-muted/30 lg:col-span-3 h-full overflow-hidden flex flex-col">
+            <SessionInput />
+            <div className="flex-1 overflow-hidden">
+              <SessionsList onSessionSelect={setSelectedSessionId} />
+            </div>
           </div>
 
           {/* Right Panel - Conversation View */}

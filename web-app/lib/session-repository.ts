@@ -1,5 +1,4 @@
 import {
-  Repository,
   Session,
   SubAgent,
   SessionStatus,
@@ -7,64 +6,29 @@ import {
   SessionMessage,
   SubAgentMessage,
 } from "./types";
-import { generateId, extractTitle } from "./git-utils";
+import { randomUUID } from "crypto";
 
 /**
- * SessionRepository manages repositories, sessions, and sub-agents
+ * Generate a unique ID
+ */
+export function generateId(): string {
+  return randomUUID();
+}
+
+/**
+ * Extract title from prompt (first line or first 50 chars)
+ */
+export function extractTitle(prompt: string): string {
+  const firstLine = prompt.split("\n")[0];
+  return firstLine.length > 50 ? firstLine.substring(0, 50) + "..." : firstLine;
+}
+
+/**
+ * SessionRepository manages sessions and sub-agents (workspace-based)
  */
 class SessionRepository {
-  private repositories: Map<string, Repository> = new Map();
   private sessions: Map<string, Session> = new Map();
   private subAgents: Map<string, SubAgent> = new Map();
-
-  // ============ Repository Management ============
-
-  /**
-   * Add or update a repository
-   */
-  addRepository(repo: Repository): Repository {
-    this.repositories.set(repo.id, repo);
-    return repo;
-  }
-
-  /**
-   * Get repository by ID
-   */
-  getRepository(id: string): Repository | null {
-    return this.repositories.get(id) || null;
-  }
-
-  /**
-   * Find repository by local path
-   */
-  findRepositoryByPath(localPath: string): Repository | null {
-    return (
-      Array.from(this.repositories.values()).find(
-        (r) => r.localPath === localPath
-      ) || null
-    );
-  }
-
-  /**
-   * Get all repositories with their sessions
-   */
-  getAllRepositories(): Repository[] {
-    return Array.from(this.repositories.values()).map((repo) => ({
-      ...repo,
-      sessions: this.getSessionsByRepository(repo.id),
-    }));
-  }
-
-  /**
-   * Delete repository
-   */
-  deleteRepository(id: string): boolean {
-    // Delete all sessions in this repository
-    const sessions = this.getSessionsByRepository(id);
-    sessions.forEach((session) => this.deleteSession(session.id));
-
-    return this.repositories.delete(id);
-  }
 
   // ============ Session Management ============
 
@@ -72,7 +36,9 @@ class SessionRepository {
    * Create a new session
    */
   createSession(data: {
-    repositoryId: string;
+    githubRepo: string;
+    workspacePath: string;
+    gitBranch: string;
     prompt: string;
     model?: string;
   }): Session {
@@ -81,7 +47,9 @@ class SessionRepository {
 
     const session: Session = {
       id,
-      repositoryId: data.repositoryId,
+      githubRepo: data.githubRepo,
+      workspacePath: data.workspacePath,
+      gitBranch: data.gitBranch,
       title,
       description: data.prompt,
       status: "active",
@@ -117,11 +85,25 @@ class SessionRepository {
   }
 
   /**
-   * Get all sessions for a repository
+   * Get all sessions, sorted by creation date (newest first)
    */
-  getSessionsByRepository(repositoryId: string): Session[] {
+  getAllSessions(): Session[] {
     return Array.from(this.sessions.values())
-      .filter((s) => s.repositoryId === repositoryId)
+      .map((session) => ({
+        ...session,
+        subAgents: session.subAgents
+          .map((sa) => this.subAgents.get(sa.id))
+          .filter((sa): sa is SubAgent => sa !== undefined),
+      }))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  /**
+   * Get sessions by GitHub repo
+   */
+  getSessionsByRepo(githubRepo: string): Session[] {
+    return Array.from(this.sessions.values())
+      .filter((s) => s.githubRepo === githubRepo)
       .map((session) => ({
         ...session,
         subAgents: session.subAgents
@@ -408,7 +390,6 @@ class SessionRepository {
    * Clear all data
    */
   clear(): void {
-    this.repositories.clear();
     this.sessions.clear();
     this.subAgents.clear();
   }
@@ -418,11 +399,26 @@ class SessionRepository {
    */
   getStats() {
     return {
-      repositories: this.repositories.size,
       sessions: this.sessions.size,
       activeSessions: this.getActiveSessions().length,
       subAgents: this.subAgents.size,
     };
+  }
+
+  /**
+   * Get unique GitHub repos with session counts
+   */
+  getGitHubRepoStats(): { repo: string; count: number }[] {
+    const repoMap = new Map<string, number>();
+
+    for (const session of this.sessions.values()) {
+      const count = repoMap.get(session.githubRepo) || 0;
+      repoMap.set(session.githubRepo, count + 1);
+    }
+
+    return Array.from(repoMap.entries())
+      .map(([repo, count]) => ({ repo, count }))
+      .sort((a, b) => b.count - a.count);
   }
 }
 

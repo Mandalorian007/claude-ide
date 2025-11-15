@@ -18,35 +18,45 @@ export interface SubAgentMessage {
   metadata?: Record<string, any>;
 }
 
-// Git Repository (natural project boundary)
-export interface Repository {
-  id: string;
+// GitHub Repository reference
+export interface GitHubRepo {
   owner: string;              // e.g., "Mandalorian007"
   name: string;               // e.g., "claude-ide"
   fullName: string;           // e.g., "Mandalorian007/claude-ide"
-  localPath: string;          // Absolute path on filesystem
-  branch: string;             // Current git branch
-  remoteUrl?: string;         // Git remote URL
-  sessions: Session[];
+  url: string;                // GitHub URL
+  defaultBranch: string;      // e.g., "main" or "master"
 }
 
-// Session = one conversation/workflow in a repository
+// Session = isolated workspace with dedicated branch
 export interface Session {
   id: string;
-  repositoryId: string;
+  sdkSessionId?: string;      // SDK session ID for continuation
+
+  // GitHub & Workspace
+  githubRepo: string;         // "owner/repo" format
+  workspacePath: string;      // Absolute path to workspace directory
+  gitBranch: string;          // Branch created for this session
+
+  // Session Info
   title: string;              // Extracted from prompt
   description: string;        // Initial prompt
   status: SessionStatus;
-  contextUsed: number;        // Main session context
+
+  // Metrics
+  contextUsed: number;
   maxContext: number;
   totalTokens: number;
   totalCost: number;
   model: string;
+
+  // Timestamps
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
-  sdkSessionId?: string;      // SDK session ID for continuation
+
+  // State
   error?: string;
+  prUrl?: string;             // Pull request URL if created
 
   messages: SessionMessage[];
   subAgents: SubAgent[];

@@ -3,7 +3,7 @@
 ## Installation
 
 ```bash
-npm install @anthropic-ai/claude-agent-sdk
+pnpm add @anthropic-ai/claude-agent-sdk
 ```
 
 ## Basic Usage
