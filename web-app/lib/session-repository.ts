@@ -7,6 +7,7 @@ import {
   SubAgentMessage,
 } from "./types";
 import { randomUUID } from "crypto";
+import { loadDatabase, saveDatabase } from "./db";
 
 /**
  * Generate a unique ID
@@ -25,10 +26,128 @@ export function extractTitle(prompt: string): string {
 
 /**
  * SessionRepository manages sessions and sub-agents (workspace-based)
+ * In-memory cache with SQLite persistence
  */
 class SessionRepository {
   private sessions: Map<string, Session> = new Map();
   private subAgents: Map<string, SubAgent> = new Map();
+  private saveTimeout: NodeJS.Timeout | null = null;
+  private isLoaded = false;
+
+  constructor() {
+    // Load data from database on initialization (lazy)
+    this.loadFromDatabase();
+  }
+
+  /**
+   * Load all data from database into memory (async)
+   */
+  private async loadFromDatabaseAsync(): Promise<void> {
+    if (this.isLoaded) return;
+
+    // Skip loading during build time
+    if (typeof window === 'undefined' && process.env.NODE_ENV === 'production' && !process.env.NEXT_RUNTIME) {
+      this.isLoaded = true;
+      return;
+    }
+
+    try {
+      const data = await loadDatabase();
+
+      // Load sessions
+      for (const session of data.sessions) {
+        this.sessions.set(session.id, session);
+      }
+
+      // Load sub-agents
+      for (const subAgent of data.subAgents) {
+        this.subAgents.set(subAgent.id, subAgent);
+      }
+
+      this.isLoaded = true;
+      console.log(`Loaded ${data.sessions.length} sessions and ${data.subAgents.length} sub-agents from database`);
+    } catch (error) {
+      console.error("Failed to load from database:", error);
+      // Continue with empty state
+      this.isLoaded = true;
+    }
+  }
+
+  /**
+   * Synchronous wrapper for loading (marks as loaded immediately)
+   */
+  private loadFromDatabase(): void {
+    if (this.isLoaded) return;
+
+    // Start async load but don't block
+    this.loadFromDatabaseAsync().catch(error => {
+      console.error("Failed to load from database:", error);
+    });
+
+    // Mark as loaded immediately to prevent multiple loads
+    this.isLoaded = true;
+  }
+
+  /**
+   * Schedule a save to database (debounced to avoid excessive writes)
+   */
+  private scheduleSave(): void {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+    }
+
+    this.saveTimeout = setTimeout(() => {
+      this.saveToDatabase();
+    }, 1000); // Save 1 second after last change
+  }
+
+  /**
+   * Save all data to database
+   */
+  private saveToDatabase(): void {
+    // Save asynchronously but don't block
+    this.saveToDatabaseAsync().catch(error => {
+      console.error("Failed to save to database:", error);
+    });
+  }
+
+  /**
+   * Save all data to database (async)
+   */
+  private async saveToDatabaseAsync(): Promise<void> {
+    try {
+      const data = {
+        sessions: Array.from(this.sessions.values()),
+        subAgents: Array.from(this.subAgents.values()),
+        version: "1.0",
+      };
+
+      await saveDatabase(data);
+    } catch (error) {
+      console.error("Failed to save to database:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Force immediate save to database
+   */
+  public async flush(): Promise<void> {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
+    await this.saveToDatabaseAsync();
+  }
+
+  /**
+   * Ensure database is loaded
+   */
+  public async ensureLoaded(): Promise<void> {
+    if (!this.isLoaded) {
+      await this.loadFromDatabaseAsync();
+    }
+  }
 
   // ============ Session Management ============
 
@@ -65,6 +184,7 @@ class SessionRepository {
     };
 
     this.sessions.set(id, session);
+    this.scheduleSave();
     return session;
   }
 
@@ -141,6 +261,7 @@ class SessionRepository {
     };
 
     this.sessions.set(id, updated);
+    this.scheduleSave();
     return this.getSession(id);
   }
 
@@ -191,6 +312,7 @@ class SessionRepository {
 
     session.messages.push(message);
     session.updatedAt = new Date();
+    this.scheduleSave();
   }
 
   /**
@@ -222,6 +344,7 @@ class SessionRepository {
     }
 
     session.updatedAt = new Date();
+    this.scheduleSave();
   }
 
   /**
@@ -231,10 +354,16 @@ class SessionRepository {
     const session = this.sessions.get(id);
     if (!session) return false;
 
-    // Delete all sub-agents
+    // Delete all sub-agents from memory
     session.subAgents.forEach((sa) => this.subAgents.delete(sa.id));
 
-    return this.sessions.delete(id);
+    // Delete from memory
+    const deleted = this.sessions.delete(id);
+
+    // Schedule save
+    this.scheduleSave();
+
+    return deleted;
   }
 
   // ============ Sub-Agent Management ============
@@ -270,6 +399,7 @@ class SessionRepository {
       session.subAgents.push(subAgent);
     }
 
+    this.scheduleSave();
     return subAgent;
   }
 
@@ -298,6 +428,7 @@ class SessionRepository {
 
     const updated = { ...subAgent, ...updates };
     this.subAgents.set(id, updated);
+    this.scheduleSave();
     return updated;
   }
 
@@ -350,6 +481,7 @@ class SessionRepository {
     };
 
     subAgent.messages.push(message);
+    this.scheduleSave();
   }
 
   /**
@@ -375,13 +507,17 @@ class SessionRepository {
     if (data.totalCost !== undefined) {
       subAgent.totalCost = data.totalCost;
     }
+
+    this.scheduleSave();
   }
 
   /**
    * Delete sub-agent
    */
   deleteSubAgent(id: string): boolean {
-    return this.subAgents.delete(id);
+    const deleted = this.subAgents.delete(id);
+    this.scheduleSave();
+    return deleted;
   }
 
   // ============ Utility Methods ============
@@ -392,6 +528,9 @@ class SessionRepository {
   clear(): void {
     this.sessions.clear();
     this.subAgents.clear();
+
+    // Note: This does NOT clear the database
+    // Use clearDatabase() from db.ts if you need to clear persistent storage
   }
 
   /**
