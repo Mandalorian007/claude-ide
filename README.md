@@ -1,6 +1,6 @@
 # Claude IDE
 
-An agentic development environment for orchestrating multiple Claude agents across projects, built with Next.js 16 and the Claude Agent SDK.
+An agentic development environment for orchestrating Claude sessions with sub-agent workflows, built with Next.js 16 and the Claude Agent SDK.
 
 ## Project Structure
 
@@ -14,8 +14,16 @@ claude-ide/                    # Root directory
 │   └── CLAUDE_SDK_GUIDE.md  # SDK quick reference
 └── web-app/                 # Next.js application
     ├── app/                 # Next.js app router
+    │   ├── actions.ts      # Server Actions API
+    │   └── page.tsx        # Main UI layout
     ├── components/          # React components
+    │   ├── session-input.tsx    # Session starter
+    │   ├── sessions-list.tsx    # Sessions sidebar
+    │   └── conversation-view.tsx # Main conversation
     ├── lib/                 # Utilities and core logic
+    │   ├── types.ts        # TypeScript definitions
+    │   ├── git-utils.ts    # Git repository utilities
+    │   └── session-repository.ts # State management
     └── public/              # Static assets
 ```
 
@@ -25,60 +33,83 @@ claude-ide/                    # Root directory
 
 ## Overview
 
-Claude IDE is a web-based interface for managing multiple Claude agents working on different projects simultaneously. It provides:
+Claude IDE is a **session-based** web interface for orchestrating Claude with sub-agent workflows, inspired by the Claude Code web interface. It provides:
 
-- **Multi-Agent Orchestration**: Run multiple independent agents on the same project in parallel
-- **Project-Based Organization**: Agents grouped by the directory/project they're working on
-- **Real-Time Tracking**: Live context usage, token counts, and cost monitoring per agent
-- **3-Panel Interface**: Projects sidebar, activity viewer, and chat interface
+- **Session-Based Workflows**: Each session is a conversation scoped to a Git repository
+- **Sub-Agent Orchestration**: Main sessions can spawn specialized sub-agents (test-runner, code-reviewer, type-checker, etc.)
+- **Git Repository Scoping**: Sessions are organized by repository, not directory
+- **Real-Time Tracking**: Live context usage, token counts, and cost monitoring
+- **2-Panel Interface**: Sessions list + conversation view (Claude Code style)
 - **MCP Integration**: Extensible via Model Context Protocol servers
 
 ## Architecture
 
+### Core Concepts
+
+**Session-Based Design**: Inspired by Claude Code web interface, sessions are the primary unit of work:
+- Each **Repository** represents a Git repo (natural project boundary)
+- Each **Session** is a conversation/task within a repository
+- Each **Sub-Agent** is a specialized task spawned by the main session
+
 ### Core Components
 
 1. **UI Layer** (`/app`)
-   - **Left Panel**: Project-based agent list with live status and metrics
-   - **Middle Panel**: Activity viewer for monitoring agent actions
-   - **Right Panel**: Chat interface for starting new agents
+   - **Top Bar**: Session input (repository path + task description)
+   - **Left Panel**: Sessions list grouped by repository, showing sub-agents
+   - **Right Panel**: Conversation view with messages and sub-agent activity
 
 2. **Backend Layer**
-   - **Server Actions**: Primary API for agent operations (`startAgent`, `getProjects`, etc.)
-   - **AgentRepository**: In-memory state management for all agents
-   - **Agent Manager**: Handles SDK query lifecycle and streaming
+   - **Server Actions**: API for session operations (`startSession`, `continueSession`, `getRepositories`)
+   - **SessionRepository**: In-memory state management for repos, sessions, and sub-agents
+   - **Git Utils**: Repository discovery and parsing
 
-3. **Agent Layer**
-   - Each agent is an independent `query()` instance from the Claude Agent SDK
-   - Agents work in specific project directories (via `cwd`)
-   - Multiple agents can work on the same project simultaneously
+3. **Session Layer**
+   - Main session orchestrates work via Claude Agent SDK
+   - Can spawn sub-agents for specialized tasks (test-runner, code-reviewer, etc.)
+   - Sub-agents defined in `agents:` option of SDK `query()`
 
 ### Data Flow
 
 ```
-User Input → Server Action → AgentRepository → SDK query()
-                ↓                                    ↓
-            Create Agent Record              Execute in project dir
-                ↓                                    ↓
-        Stream Updates ← Update State ← SDK Messages
+User Input → startSession() → SessionRepository.createSession()
+                ↓                           ↓
+         SDK query() with sub-agents    Track state
+                ↓                           ↓
+         Main session works         Update session metrics
+                ↓                           ↓
+         Spawns sub-agent          Create SubAgent record
+         (via Task tool)                    ↓
+                ↓                    Track sub-agent execution
+         Sub-agent completes               ↓
+                ↓                    Update SubAgent status
+         Results feed back                 ↓
+         to main session            Stream to UI
 ```
 
-### Multi-Agent Support
+### Session + Sub-Agent Workflow
 
-The system supports multiple agents working independently:
+The system uses an orchestrated workflow where the main session coordinates specialized sub-agents:
 
 ```
-my-web-app/
-  🟢 "Add authentication"      - 45k/200k - $0.0045
-  🟢 "Fix CSS bugs"            - 32k/200k - $0.0032
-  🟢 "Write tests"             - 67k/200k - $0.0067
-  🔴 "Update documentation"    - ERROR
+Mandalorian007/claude-ide
+  📋 Session: "Refactor authentication"
+     🤖 Sub-agent: test-runner    - 8k context
+     🤖 Sub-agent: type-checker   - 6k context
+     └─ Status: ✅ Completed      - 45k/200k total - $0.0045
 ```
 
-Each agent:
-- Has its own context window
-- Operates independently
-- Is tracked for tokens/cost/status
-- Is grouped by project path in the UI
+**Sub-Agents Available:**
+- `test-runner`: Runs tests and validates changes (Haiku, fast & cheap)
+- `type-checker`: Validates TypeScript types (Haiku)
+- `code-reviewer`: Reviews code quality (Sonnet, more capable)
+- `linter`: Runs linters and formatters (Haiku)
+- `documentation`: Writes documentation (Sonnet)
+
+Each session:
+- Has its own context window (up to 200k tokens)
+- Can spawn multiple sub-agents
+- Sub-agents have their own context/cost tracking
+- Session can be resumed/continued after completion
 
 ## Tech Stack
 
